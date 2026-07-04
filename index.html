@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+</body>
+
+<script>
+    const FSDebug = false;
+    const UIDebug = false;
+    const WFS = new Worker('./wfs.js');
+    const ops = {};
+    let opNum = 0;
+
+    const FS = {
+        noBoiler: async function (data) {
+            return new Promise((resolve, reject) => {
+                opNum++;
+                ops[opNum] = { resolve, reject };
+                WFS.postMessage({ opNum, data });
+            });
+        },
+        init: async function () { return await FS.noBoiler({ opType: "init" }); },
+        write: async function (path, content, type) { return await FS.noBoiler({ opType: "write", path, content, type }); },
+        read: async function (path) { return await FS.noBoiler({ opType: "read", path }); },
+        rm: async function (path) { return await FS.noBoiler({ opType: "rm", path }); },
+        mkdir: async function (path) { return await FS.noBoiler({ opType: "mkdir", path }); },
+        ls: async function (path) { return await FS.noBoiler({ opType: "ls", path }); }
+    }
+
+    WFS.addEventListener("message", (event) => {
+        // Set up variables
+        if (FSDebug === true) console.log(event);
+        const data = event.data;
+        const promise = ops[data.opNum];
+        // Resolve request
+        if (!promise) return;
+        promise.resolve(data.data);
+        delete ops[data.opNum];
+    });
+
+    async function startWD() {
+        async function loadScript(path) {
+            const init = await FS.read(path);
+            const script = document.createElement("script");
+            script.textContent = init.content;
+            document.body.appendChild(script);
+        }
+
+        await loadScript("/system/init.js");
+        await loadScript("/system/ui.js");
+
+        const styleCont = await FS.read("/system/style.css");
+        const style = document.createElement("style");
+        style.textContent = styleCont.content;
+        document.body.appendChild(style);
+
+        function htmlToBase64Url(htmlString) {
+            const bytes = new TextEncoder().encode(htmlString);
+            const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+            const base64 = btoa(binString);
+            return `data:text/html;base64,${base64}`;
+        }
+
+        const frame = UI._internalCreate("iframe");
+        const frameEls = {};
+        window.addEventListener('message', async (event) => {
+            if (event.data.op === "FS") {
+                const opNum = event.data.content.opNum;
+                const processing = await FS.noBoiler(event.data.content.data);
+                const sendBack = { "op": "FS", "content": { opNum, data: processing } };
+                frame.contentWindow.postMessage(sendBack, "*");
+            } else if (event.data.op === "UI") {
+                event.data.pending.forEach(pending => {
+                    const elID = genUI();
+                    const content = pending.content;
+                    UINum = content.UINum;
+                    let element;
+                    if (content.data.type === "win") {
+                        element = UI.window(content.data.attr.title);
+                    } else if (content.data.type === "view") {
+                        const win = frameEls[content.data.parent];
+                        if (win) {
+                            const newView = UI.view();
+                            win.content.appendChild(newView);
+                            element = newView;
+                        }
+                    } else if (content.data.type === "button") {
+                        const parent = frameEls[content.data.parent];
+                        if (parent) {
+                            const newBtn = UI.button();
+                            newBtn.DOMel.innerText = content.data.attr.text;
+                            parent.appendChild(newBtn.DOMel);
+                            element = newBtn;
+                        }
+                    }
+
+                    frameEls[elID] = element;
+                    const processing = {
+                        id: elID,
+                        success: true,
+                    }
+                    const sendBack = { "op": "UI", "content": { UINum, data: processing } };
+                    frame.contentWindow.postMessage(sendBack, "*");
+                });
+            }
+        });
+
+        const frameCont = await FS.read("/system/sandbox/sandbox.html");
+        frame.src = htmlToBase64Url(frameCont.content);
+        document.body.appendChild(frame);
+    }
+
+    (async function () {
+        const initFS = await FS.init();
+        if (initFS === false) {
+            document.body.innerHTML = `<h2>Browser unsupported</h2><p>Update your browser or download Chrome to use WebDesk.</p>`;
+        }
+
+        async function writeScriptToFS(path) {
+            const init = await fetch("desk" + path);
+            const txt = await init.text();
+            await FS.write(path, txt);
+        }
+
+        await writeScriptToFS("/system/init.js");
+        await writeScriptToFS("/system/sandbox/sandbox.html");
+        await writeScriptToFS("/system/ui.js");
+        await writeScriptToFS("/system/style.css");
+
+        await startWD();
+    })();
+</script>
