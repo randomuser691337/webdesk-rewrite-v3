@@ -51,66 +51,15 @@
 
         await loadScript("/system/init.js");
         await loadScript("/system/ui.js");
+        await loadScript("/system/sandbox/sandbox_creator.js");
 
         const styleCont = await FS.read("/system/style.css");
         const style = document.createElement("style");
         style.textContent = styleCont.content;
         document.body.appendChild(style);
 
-        function htmlToBase64Url(htmlString) {
-            const bytes = new TextEncoder().encode(htmlString);
-            const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
-            const base64 = btoa(binString);
-            return `data:text/html;base64,${base64}`;
-        }
-
-        const frame = UI._internalCreate("iframe");
-        const frameEls = {};
-        window.addEventListener('message', async (event) => {
-            if (event.data.op === "FS") {
-                const opNum = event.data.content.opNum;
-                const processing = await FS.noBoiler(event.data.content.data);
-                const sendBack = { "op": "FS", "content": { opNum, data: processing } };
-                frame.contentWindow.postMessage(sendBack, "*");
-            } else if (event.data.op === "UI") {
-                event.data.pending.forEach(pending => {
-                    const elID = genUI();
-                    const content = pending.content;
-                    UINum = content.UINum;
-                    let element;
-                    if (content.data.type === "win") {
-                        element = UI.window(content.data.attr.title);
-                    } else if (content.data.type === "view") {
-                        const win = frameEls[content.data.parent];
-                        if (win) {
-                            const newView = UI.view();
-                            win.content.appendChild(newView);
-                            element = newView;
-                        }
-                    } else if (content.data.type === "button") {
-                        const parent = frameEls[content.data.parent];
-                        if (parent) {
-                            const newBtn = UI.button();
-                            newBtn.DOMel.innerText = content.data.attr.text;
-                            parent.appendChild(newBtn.DOMel);
-                            element = newBtn;
-                        }
-                    }
-
-                    frameEls[elID] = element;
-                    const processing = {
-                        id: elID,
-                        success: true,
-                    }
-                    const sendBack = { "op": "UI", "content": { UINum, data: processing } };
-                    frame.contentWindow.postMessage(sendBack, "*");
-                });
-            }
-        });
-
-        const frameCont = await FS.read("/system/sandbox/sandbox.html");
-        frame.src = htmlToBase64Url(frameCont.content);
-        document.body.appendChild(frame);
+        await createSandbox();
+        await createSandbox();
     }
 
     (async function () {
@@ -128,6 +77,8 @@
         await writeScriptToFS("/system/init.js");
         await writeScriptToFS("/system/sandbox/sandbox.html");
         await writeScriptToFS("/system/ui.js");
+        await writeScriptToFS("/system/sandbox/sandbox_creator.js");
+        await writeScriptToFS("/apps/RenderTest.app/index.js");
         await writeScriptToFS("/system/style.css");
 
         await startWD();

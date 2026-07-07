@@ -10,13 +10,14 @@
 <script>
     const ops = {};
     let opNum = 0;
+    let frameID = null;
 
     const FS = {
         _noBoiler: async function (data) {
             return new Promise((resolve, reject) => {
                 opNum++;
                 ops[opNum] = { resolve, reject };
-                window.parent.postMessage({ "op": "FS", content: { opNum, data } }, "*");
+                window.parent.postMessage({ "frameID": frameID, "op": "FS", content: { opNum, data } }, "*");
             });
         },
         init: async function () { return await FS._noBoiler({ opType: "init" }); },
@@ -28,68 +29,106 @@
     }
 
     const UIOps = {};
+    const eventListeners = {};
     let UINum = 0;
     let toPost = [];
+    let yield = false;
 
     function addToPost(item) {
         toPost.push(item);
     }
 
+    function sendEventsNow() {
+        if (yield === false) {
+            yield = true;
+            const pending = toPost;
+            toPost = [];
+            window.parent.postMessage({ "frameID": frameID, "op": "UI", pending: JSON.stringify(pending) }, "*");
+            yield = false;
+        }
+    }
+
     setInterval(function () {
-        const pending = toPost;
-        toPost = [];
-        window.parent.postMessage({ "op": "UI", pending }, "*");
+        sendEventsNow();
     }, 20);
+
+    var countUp = 0;
+
+    function genUI() {
+        countUp++;
+        return countUp;
+    }
 
     const UI = {
         _noBoiler: async function (data) {
             return new Promise((resolve, reject) => {
                 UINum++;
                 UIOps[UINum] = { resolve, reject };
-                addToPost({ "op": "UI", content: { UINum, data }}, "*");
+                addToPost({ "op": "UI", content: { UINum, data } }, "*");
             });
         },
         win: async function (data) {
-            return await UI._noBoiler({
+            const elID = genUI();
+            const promise = UI._noBoiler({
                 type: "win",
+                elID,
                 attr: { title: data.title }
             });
+            return { id: elID, promise }
         },
-        view: async function (parent, data) {
-            return await UI._noBoiler({
+        view: function (parent, data) {
+            const elID = genUI();
+            const promise = UI._noBoiler({
                 parent: parent.id,
                 type: "view",
+                elID,
                 attr: {}
             });
+            return { id: elID, promise }
         },
-        button: async function (parent, data) {
-            return await UI._noBoiler({
+        button: function (parent, data) {
+            const elID = genUI();
+            const promise = UI._noBoiler({
                 parent: parent.id,
                 type: "button",
+                elID,
                 attr: {
                     "text": data.text
                 }
             });
+            return { id: elID, promise }
         },
         updateComponent: async function (element, data) {
-            await UI._noBoiler({
+            const promise = UI._noBoiler({
                 id: element.id,
                 parent: undefined,
                 type: "update",
                 attr: data,
             });
+            return { promise }
         },
         listen: async function (element, data) {
-            await UI._noBoiler({
+            const listenID = genUI();
+            const promise = UI._noBoiler({
                 id: element.id,
                 parent: undefined,
-                type: "update",
+                type: "listen",
+                elID: listenID,
                 attr: {
                     "event": data.event
                 },
             });
 
-            // add code to resolve events
+            eventListeners[listenID] = {
+                "event": data.event,
+                "callback": data.callback
+            }
+
+            function stopListening() {
+                delete eventListeners[listenID];
+            }
+
+            return { id: listenID, promise, stopListening };
         }
     };
 
@@ -99,51 +138,41 @@
             const promise = ops[data.opNum];
             if (!promise) return;
             promise.resolve(data.data);
+            delete ops[data.opNum];
         } else if (event.data.op === "UI") {
-            const uiID = event.data.content.UINum;
-            const promise = UIOps[uiID];
-            if (!promise) return;
-            promise.resolve(event.data.content.data);
+            const pending = JSON.parse(event.data.pending);
+            pending.forEach(pending => {
+                const uiID = pending.content.UINum;
+                const promise = UIOps[uiID];
+                if (!promise) return;
+                promise.resolve(pending.content.data);
+                delete UIOps[uiID];
+            })
+        } else if (event.data.op === "UIEvent") {
+            const pending = JSON.parse(event.data.pending);
+            pending.forEach(pending => {
+                const uiID = pending.content.UINum;
+                const callback = eventListeners[pending.content.data.id];
+                if (callback) {
+                    callback.callback(pending.content.data);
+                    delete eventListeners[pending.content.data.id]
+                }
+            });
+        } else if (event.data.op === "init") {
+            frameID = event.data.uFrameID;
+            console.log(frameID);
+            (async function () {
+                const initFS = await FS.init();
+                if (initFS === false) {
+                    document.body.innerHTML = `<h2>Browser unsupported</h2><p>Update your browser or download Chrome to use WebDesk.</p>`;
+                } else {
+                    console.log("<i> Sandbox init success!");
+                    window.parent.postMessage({ "frameID": frameID, "op": "initDone" }, "*");
+                }
+
+                const this_is_stupid_asf = await FS.read("/apps/RenderTest.app/index.js");
+                eval(this_is_stupid_asf.content);
+            })();
         }
     });
-
-    (async function () {
-        const initFS = await FS.init();
-        if (initFS === false) {
-            document.body.innerHTML = `<h2>Browser unsupported</h2><p>Update your browser or download Chrome to use WebDesk.</p>`;
-        } else {
-            console.log("<i> Sandbox init success!");
-        }
-
-        console.log("we up");
-        const win = await UI.win({ title: "hello" });
-        console.log(win);
-        const view = await UI.view(win);
-        console.log(view);
-        const btn = await UI.button(view, { "text": "Click me" });
-        console.time("UI buttons - sandbox");
-
-        let ct = 0;
-        while (ct < 20000) {
-            ct++;
-            const btn = UI.button(view, { text: "Click me" });
-        }
-
-        console.timeEnd("UI buttons - sandbox");
-
-        console.time("DOM buttons");
-
-        let ct2 = 0;
-        while (ct2 < 3000) {
-            ct2++;
-            const btn = document.createElement("button");
-            btn.innerText = "click me";
-            document.body.appendChild(btn);
-        }
-
-        console.timeEnd("DOM buttons");
-
-        await UI.updateComponent(btn, { "text": "Click me^2" });
-        await UI.listen(btn, { "event": "click", "function": testFunc });
-    })();
 </script>

@@ -1,10 +1,3 @@
-var countUp = 0;
-
-function genUI() {
-    countUp++;
-    return countUp;
-}
-
 const UIState = {
     windowArray: []
 }
@@ -69,8 +62,7 @@ var UI = {
     },
     window: function (title) {
         const newWin = this._internalCreate("div");
-        newWin.classList = 
-        newWin.style.position = "absolute";
+        newWin.classList = "window";
         document.body.appendChild(newWin);
         let titleBar, content;
 
@@ -99,7 +91,7 @@ var UI = {
     button: function (id) {
         const btn = this._internalCreate("button");
 
-        function updateComponent (data) {
+        function updateComponent(data) {
             if (data.text) btn.innerText = data.text;
         }
 
