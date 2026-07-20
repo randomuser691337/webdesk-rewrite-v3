@@ -1,14 +1,95 @@
 :root {
     --accent: 30, 30, 255;
-    --surface-main: 240, 240, 240;
+    --surface-second: 255, 255, 255;
+    --surface-main: 245, 245, 245;
+    --ui-main-opacity: 0.95;
+    --font-size-text: 15px;
+    --font-size-ui: 15px;
+    --font-size-small: 14px;
+    --bigPx: 18px;
+    --mainPx: 15px;
+    --medPx: 12px;
+    --smallPx: 9px;
+    --tinyPx: 6px;
+}
+
+* {
+    font-family: "system-ui"
+}
+
+button,
+a {
+    cursor: pointer;
+    font-size: var(--font-size-ui);
 }
 
 .window {
     position: absolute;
-    min-width: 100px;
-    min-height: 100px;
-    max-width: 75%;
-    max-height: 75%;
+    display: flex;
+    flex-direction: column;
+    min-width: 80px;
+    min-height: 60px;
+    border-radius: var(--mainPx);
+    background-color: rgba(var(--surface-main), var(--ui-main-opacity));
+    resize: both;
     overflow: auto;
-    background-color: rgba(var(--surface-main), 0.7);
+    box-shadow: 0px 0px 15px 10px rgba(0, 0, 0, 0.1);
+    z-index: 3;
+    max-width: 100%;
+    max-height: 100%;
+    backdrop-filter: blur(var(--smallPx));
+    -webkit-backdrop-filter: blur(var(--smallPx));
+}
+
+.window-titlebar-layout-text {
+    color: var(--text);
+}
+
+.window-titlebar {
+    width: 100%;
+    padding: var(--smallPx);
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid rgba(var(--accent), 0.1);
+    background-color: rgba(var(--surface-second), 1.0);
+}
+
+.window-content {
+    flex-grow: 1;
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: var(--medPx);
+}
+
+.wd-normal-button {
+    border-radius: var(--medPx);
+    background-color: rgba(var(--surface-main));
+    padding: 0px;
+    border: none;
+    overflow: hidden;
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.wd-normal-button-inside {
+    border-radius: inherit;
+    background-color: rgba(var(--accent), 0.02);
+    border: 1px solid rgba(var(--accent), 0.1);
+    padding: var(--smallPx);
+}
+
+.wd-normal-button-inside:hover {
+    background-color: rgba(var(--accent), 0.06);
+}
+
+.wd-normal-button-inside:active {
+    border: 1px solid rgba(var(--accent), 0.15);
+    background-color: rgba(var(--accent), 0.1);
+}
+
+.wd-button-list>* {
+    margin: 2px;
+    width: 100%;
+    box-sizing: border-box;
 }

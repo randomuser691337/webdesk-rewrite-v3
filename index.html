@@ -59,7 +59,6 @@
         document.body.appendChild(style);
 
         await createSandbox();
-        await createSandbox();
     }
 
     (async function () {
@@ -78,6 +77,7 @@
         await writeScriptToFS("/system/sandbox/sandbox.html");
         await writeScriptToFS("/system/ui.js");
         await writeScriptToFS("/system/sandbox/sandbox_creator.js");
+        await writeScriptToFS("/system/sandbox/perm_test.txt");
         await writeScriptToFS("/apps/RenderTest.app/index.js");
         await writeScriptToFS("/system/style.css");
 

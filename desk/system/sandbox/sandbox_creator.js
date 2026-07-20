@@ -52,40 +52,74 @@ async function createSandbox(appDetails) {
                     const sendBack = { "op": "FS", "content": { opNum, data: processing } };
                     frame.contentWindow.postMessage(sendBack, "*");
                 } else if (event.data.op === "UI") {
-                    const pending = JSON.parse(event.data.pending)
-                    pending.forEach(pending => {
+                    const pending = JSON.parse(event.data.pending);
+                    async function render(pending) {
+                        // THIS NEEDS TO BE REFACTORED
                         const content = pending.content;
                         const elID = content.data.elID;
                         UINum = content.UINum;
                         let element;
+
                         if (content.data.type === "win") {
-                            element = UI.window(content.data.attr.title);
-                        } else if (content.data.type === "view") {
+                            element = UI.window(content);
+                            element.remove = function () {
+                                UI.deleteAll(element);
+                                element.DOMel.remove();
+                            }
+                        } else if (content.data.type === "win_title") {
                             const win = frameEls[content.data.parent];
                             if (win) {
-                                const newView = UI.view();
-                                win.content.appendChild(newView);
+                                element = win.renderTitle(content.data.attr);
+                                element.remove = function () {
+                                    UI.deleteAll(element);
+                                    element.DOMel.remove();
+                                }
+                            } else {
+                                console.log("No WINDOW");
+                            }
+                        } else if (content.data.type === "win_content") {
+                            const win = frameEls[content.data.parent];
+                            if (win) {
+                                element = win.renderContent();
+                                element.remove = function () {
+                                    UI.deleteAll(element);
+                                    element.DOMel.remove();
+                                }
+                            } else {
+                                console.log("No WINDOW");
+                            }
+                        } else if (content.data.type === "div") {
+                            const parent = frameEls[content.data.parent];
+                            if (parent) {
+                                const newView = UI.div();
+                                newView.remove = function () {
+                                    UI.deleteAll(newView);
+                                    newView.DOMel.remove();
+                                }
+
+                                parent.DOMel.appendChild(newView.DOMel);
+                                UI.update(newView, content);
+                                parent.children[elID] = newView;
                                 element = newView;
+                            } else {
+                                console.log("No parent");
                             }
                         } else if (content.data.type === "button") {
                             const parent = frameEls[content.data.parent];
                             if (parent) {
                                 const newBtn = UI.button();
-                                newBtn.DOMel.innerText = content.data.attr.text;
-                                parent.appendChild(newBtn.DOMel);
+                                parent.DOMel.appendChild(newBtn.DOMel);
+                                newBtn.remove = function () {
+                                    newBtn.DOMel.remove();
+                                }
+                                parent.children[elID] = newBtn;
                                 element = newBtn;
+                                UI.update(newBtn, content);
+                            } else {
+                                console.log("No parent");
                             }
                         } else if (content.data.type === "update") {
-                            const el = frameEls[content.data.id];
-                            const attr = content.data.attr;
-                            if (el) {
-                                if (attr.text) el.DOMel.innerText = attr.text;
-                                if (attr.styles) {
-                                    Object.entries(attr.styles).forEach(([name, value]) => {
-                                        el.DOMel.style[name] = value;
-                                    });
-                                }
-                            }
+                            UI.update(frameEls[content.data.id], content);
                         } else if (content.data.type === "listen") {
                             const el = frameEls[content.data.id];
                             if (el) {
@@ -93,26 +127,43 @@ async function createSandbox(appDetails) {
                                     const processing = {
                                         id: elID,
                                         "event": content.data.attr.event,
-                                        /* "x": event.clientX,
-                                        "y": event.clientY */
+                                        "buttons": event.buttons,
+                                        "x": event.clientX,
+                                        "y": event.clientY
                                     }
                                     const sendBack = { "op": "UIEvent", "content": { UINum, data: processing } };
                                     addToEvents(sendBack);
                                     return;
-                                }, { "once": true });
+                                });
+                                // used to be { once: true } idk what I wanna do yet
                             } else {
-                                console.log("NO ELEMENT")
+                                console.log("NO ELEMENT");
+                            }
+                        } else if (content.data.type === "reset") {
+                            const el = frameEls[content.data.id];
+                            if (el) {
+                                UI.deleteAll(el);
+                            } else {
+                                console.log("NO ELEMENT");
                             }
                         }
 
-                        frameEls[elID] = element;
+                        if (!element) {
+                            // console.error("Failed to create", content.data.type, content.data);
+                        } else {
+                            frameEls[elID] = element;
+                        }
+
                         const processing = {
                             id: elID,
                             success: true,
                         }
                         const sendBack = { "op": "UI", "content": { UINum, data: processing } };
                         addToPost(sendBack);
-                    });
+                    }
+                    for (const pendingItem of pending) {
+                        await render(pendingItem);
+                    }
                 }
             });
         }
@@ -134,5 +185,5 @@ async function createSandbox(appDetails) {
         const frameCont = await FS.read("/system/sandbox/sandbox.html");
         frame.src = htmlToBase64Url(frameCont.content);
         document.body.appendChild(frame);
-    })
+    });
 }
