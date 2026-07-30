@@ -5,6 +5,7 @@
         }
 
         function testFunc(btn, event) {
+            // console.log(event);
             if (event.buttons === 1) {
                 UI.updateComponent(btn, {
                     "styles": {
@@ -58,8 +59,8 @@
                 }
             });
 
-            UI.listen(btn, { "event": "mouseenter", "callback": (event) => testFunc(btn, event) });
-            UI.listen(btn, { "event": "mousedown", "callback": (event) => testFunc(btn, event) });
+            UI.listen(btn, { "event": "pointerover", "callback": (event) => testFunc(btn, event) });
+            UI.listen(btn, { "event": "pointerdown", "callback": (event) => testFunc(btn, event) });
         }
 
         console.timeEnd("UI buttons - sandbox");

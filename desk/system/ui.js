@@ -134,19 +134,36 @@ var UI = {
     },
     div: function (parent) {
         const div = this._internalCreate("div");
-        return { DOMel: div, children: {} };
+        if (parent) parent.DOMel.appendChild(div);
+        let element = { DOMel: div, children: {} };
+
+        element["remove"] = function () {
+            UI.deleteAll(element);
+            element.DOMel.remove();
+        }
+
+        return element;
     },
-    button: function (id) {
+    button: function (parent) {
         const btn = this._internalCreate("button");
+        if (parent) parent.DOMel.appendChild(btn);
 
         function updateComponent(data) {
             if (data.text) btn.innerText = data.text;
         }
 
-        return { DOMel: btn, updateComponent, children: {} };
+        let element = { DOMel: btn, updateComponent, children: {} }
+
+        element["remove"] = function () {
+            UI.deleteAll(element);
+            element.DOMel.remove();
+        }
+
+        return element;
     },
-    text: function (id) {
+    text: function (parent) {
         const p = this._internalCreate("p");
+        if (parent) parent.DOMel.appendChild(p);
         return { DOMel: p, children: {} };
     }
 }
